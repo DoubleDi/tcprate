@@ -10,11 +10,12 @@ go test -v -timeout 300s
 ## Example server usage
 
 ```
+    limiter := tcprate.NewLimiter()
     l, err := net.Listen("tcp", addr)
     if err != nil {
         panic(err)
     }
-    l.WithBandwith(10)
+    limiter.WithBandwith(10)
     for {
         conn, err := l.Accept()
         if err != nil {
