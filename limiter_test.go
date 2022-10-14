@@ -26,13 +26,13 @@ func TestDynamicRate(t *testing.T) {
 			t.Logf("changing server limit to %v", 10)
 			limiter.WithBandwith(10)
 		}()
-	}, func(conn *Conn) {
+	}, func(limiter *Limiter) {
 		t.Logf("setting conn limit to %v", 15)
-		conn.WithBandwith(15)
+		limiter.WithPerConnBandwith(15)
 		go func() {
 			<-time.After(time.Second * 20)
 			t.Logf("changing conn limit to %v", 5)
-			conn.WithBandwith(5)
+			limiter.WithPerConnBandwith(5)
 		}()
 	})
 	defer listener.Close()
@@ -43,13 +43,14 @@ func TestDynamicRate(t *testing.T) {
 	})
 }
 
-func runServer(t *testing.T, adjustLimiter func(limiter *Limiter), adjustConn func(conn *Conn)) net.Listener {
+func runServer(t *testing.T, adjustLimiter func(limiter *Limiter), adjustConn func(limiter *Limiter)) net.Listener {
 	limiter := NewLimiter()
 	l, err := net.Listen("tcp", addr)
 	if err != nil {
 		t.Fatal(err)
 	}
 	adjustLimiter(limiter)
+	adjustConn(limiter)
 	go func() {
 		for {
 			conn, err := l.Accept()
@@ -58,7 +59,6 @@ func runServer(t *testing.T, adjustLimiter func(limiter *Limiter), adjustConn fu
 				return
 			}
 			wrappedConn := limiter.WrapConn(conn)
-			adjustConn(wrappedConn)
 			go handleConn(t, wrappedConn)
 		}
 	}()
@@ -109,7 +109,7 @@ func TestMultipleClients(t *testing.T) {
 	listener := runServer(t, func(limiter *Limiter) {
 		t.Logf("changing server limit to %v", 20)
 		limiter.WithBandwith(20)
-	}, func(conn *Conn) {})
+	}, func(limiter *Limiter) {})
 	defer listener.Close()
 
 	wg := &sync.WaitGroup{}
